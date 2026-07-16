@@ -15,11 +15,11 @@ async function replyMessage(replyToken, textMessage, accessToken) {
 }
 
 exports.handler = async (event, context) => {
+  // 🔑 ฝัง Token ตรงๆ ตามคำขอ ไม่ต้องง้อระบบอื่น
+  const channelAccessToken = "G2tV047Ye/9jN50ooyrY6QhRCXip8f0/WzaV965OuzbxAXvRzLJQOyurIKf8wYdBWwB/zN43ATmJSU8ne+vj+RqMTb1iq0qy94ldu60t/Cl/1Pf4r54/0GZriA9ZRZ1RQpwuxwHX5mAUYqvbXKDMIwdB04t89/1O/w1cDnyilFU=";
+
   if (event.httpMethod === 'POST') {
     try {
-      // 💡 จุดเปลี่ยนสำคัญ: ดึงคีย์โดยตรงจากแผงควบคุมที่พี่ส่งมา (ผ่านตัวแปร หรือ Header)
-      const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || event.headers['authorization']?.replace('Bearer ', '');
-      
       const body = JSON.parse(event.body);
       
       if (body.events && body.events.length > 0) {
@@ -30,7 +30,6 @@ exports.handler = async (event, context) => {
           const replyToken = lineEvent.replyToken;
 
           if (userText === 'สวัสดี') {
-            // ส่งข้อความกลับ โดยใช้ Token ที่ดึงมาได้
             await replyMessage(replyToken, 'ไง', channelAccessToken);
           }
         }
