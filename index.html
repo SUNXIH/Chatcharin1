@@ -2,73 +2,76 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Model Builder & Tagging Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Easy 3D Mobile Builder</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Import Three.js & Controls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 </head>
-<body class="bg-gray-900 text-white flex h-screen overflow-hidden">
+<body class="bg-gray-900 text-white flex flex-col h-screen overflow-hidden select-none">
 
-  <!-- Left Sidebar: Tools & Hierarchy -->
-  <div class="w-80 bg-gray-800 p-4 flex flex-col border-r border-gray-700 z-10">
-    <h1 class="text-xl font-bold mb-4 text-emerald-400">3D Builder & Tagger</h1>
-
-    <!-- Action Buttons -->
-    <div class="grid grid-cols-2 gap-2 mb-4">
-      <button onclick="addBlock('box')" class="bg-blue-600 hover:bg-blue-500 py-2 rounded text-sm font-semibold">+ เพิ่มกล่อง</button>
-      <button onclick="addBlock('sphere')" class="bg-purple-600 hover:bg-purple-500 py-2 rounded text-sm font-semibold">+ เพิ่มทรงกลม</button>
-    </div>
-
-    <!-- Hierarchy / Model Parts Tree -->
-    <div class="flex-1 overflow-y-auto mb-4 bg-gray-950 p-2 rounded border border-gray-700">
-      <h2 class="text-xs uppercase font-bold text-gray-400 mb-2">รายการชิ้นส่วน (Hierarchy)</h2>
-      <div id="partList" class="space-y-1"></div>
-    </div>
-
-    <!-- Save & Export Link -->
-    <button onclick="saveToFirebase()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded font-bold text-base mb-2">
-      💾 บันทึกโมเดล & สร้างลิงก์
+  <!-- Top Bar: Actions -->
+  <div class="bg-gray-800 p-2 flex gap-2 overflow-x-auto border-b border-gray-700 shrink-0">
+    <button onclick="createHumanPreset()" class="bg-indigo-600 active:bg-indigo-700 px-3 py-2 rounded text-xs font-bold whitespace-nowrap">
+      🧍 สร้างตัวคนอัตโนมัติ
     </button>
-    <div id="shareLinkContainer" class="hidden bg-gray-900 p-2 rounded text-xs border border-emerald-500/50">
-      <span class="text-gray-400">URL สำหรับดึงข้อมูลโมเดล:</span>
-      <input id="shareUrl" readonly class="w-full bg-gray-950 p-1 rounded text-emerald-300 mt-1 select-all" />
+    <button onclick="addPart('box', 'กล่อง')" class="bg-blue-600 active:bg-blue-700 px-3 py-2 rounded text-xs font-bold whitespace-nowrap">
+      ➕ เพิ่มบล็อก
+    </button>
+    <button onclick="saveAndGetLink()" class="bg-emerald-600 active:bg-emerald-700 px-3 py-2 rounded text-xs font-bold whitespace-nowrap ml-auto">
+      💾 เซฟ & เอาลิงก์
+    </button>
+  </div>
+
+  <!-- Main 3D Canvas Area -->
+  <div id="canvas-container" class="flex-1 w-full relative">
+    <div id="hint" class="absolute top-2 left-2 bg-black/60 px-3 py-1 rounded text-[11px] text-gray-300 pointer-events-none">
+      👉 เอานิ้วลากเพื่อหมุน | จิ้มที่ชิ้นส่วนเพื่อเลือก
     </div>
   </div>
 
-  <!-- Main Viewport 3D -->
-  <div class="flex-1 relative">
-    <div id="canvas-container" class="w-full h-full"></div>
-    <div class="absolute top-4 left-4 bg-gray-900/80 backdrop-blur p-2 rounded text-xs text-gray-300 space-y-1 border border-gray-700">
-      <p>🖱️ **หมุนมุมมอง**: คลิกขวา/ซ้ายลาก</p>
-      <p>🎯 **เลือกชิ้นส่วน**: คลิกที่บล็อก</p>
-      <p>⌨️ **W**: ย้ายตำแหน่ง | **E**: หมุน | **R**: ขยาย</p>
+  <!-- Bottom Panel: Controls for Selected Part -->
+  <div id="controlPanel" class="bg-gray-800 p-3 border-t border-gray-700 shrink-0 hidden">
+    <div class="flex justify-between items-center mb-2">
+      <span id="selectedName" class="text-xs font-bold text-emerald-400">ชิ้นส่วนที่เลือก</span>
+      <button onclick="deleteCurrent()" class="text-xs bg-red-600 px-2 py-1 rounded">🗑️ ลบ</button>
     </div>
-  </div>
 
-  <!-- Right Inspector: Item Properties & Tagging -->
-  <div class="w-72 bg-gray-800 p-4 border-l border-gray-700 z-10 flex flex-col justify-between">
-    <div>
-      <h2 class="text-base font-bold mb-3 border-b border-gray-700 pb-2 text-indigo-400">ตั้งค่าชิ้นส่วน (Inspector)</h2>
+    <!-- Tagging Field -->
+    <div class="flex items-center gap-2 mb-2">
+      <span class="text-xs text-gray-400 w-12">แท็ก:</span>
+      <input id="tagInput" type="text" placeholder="เช่น Head, RightArm" onchange="updateTag(this.value)" class="flex-1 bg-gray-900 border border-emerald-500 rounded px-2 py-1 text-xs text-emerald-300"/>
+    </div>
+
+    <!-- Move Buttons Grid -->
+    <div class="grid grid-cols-3 gap-1 text-center">
+      <div class="text-[10px] text-gray-400 col-span-3">ขยับตำแหน่ง (X / Y / Z)</div>
+      <button onclick="moveObj('y', 0.2)" class="bg-gray-700 py-2 rounded font-bold">⬆️ ขึ้น</button>
+      <button onclick="moveObj('z', -0.2)" class="bg-gray-700 py-2 rounded font-bold">⬆️ เดินหน้า</button>
+      <button onclick="moveObj('y', -0.2)" class="bg-gray-700 py-2 rounded font-bold">⬇️ ลง</button>
       
-      <div id="inspector-content" class="space-y-4">
-        <p class="text-sm text-gray-400 italic">เลือกชิ้นส่วนเพื่อแก้ไข</p>
-      </div>
+      <button onclick="moveObj('x', -0.2)" class="bg-gray-700 py-2 rounded font-bold">⬅️ ซ้าย</button>
+      <button onclick="moveObj('z', 0.2)" class="bg-gray-700 py-2 rounded font-bold">⬇️ ถอยหลัง</button>
+      <button onclick="moveObj('x', 0.2)" class="bg-gray-700 py-2 rounded font-bold">➡️ ขวา</button>
     </div>
+  </div>
 
-    <button onclick="deleteSelected()" id="btnDelete" class="w-full bg-red-600/80 hover:bg-red-600 py-2 rounded text-sm hidden font-semibold">
-      🗑️ ลบชิ้นส่วนที่เลือก
-    </button>
+  <!-- Result Modal -->
+  <div id="linkModal" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-gray-800 p-4 rounded-lg w-full max-w-sm border border-emerald-500">
+      <h3 class="text-sm font-bold text-emerald-400 mb-2">🎉 บันทึกสำเร็จ!</h3>
+      <p class="text-xs text-gray-300 mb-2">ก๊อปปี้ลิงก์ JSON นี้ไปใส่ในตัวเกมของคุณได้เลย:</p>
+      <input id="resultUrl" readonly class="w-full bg-gray-900 p-2 rounded text-xs text-emerald-300 mb-3 border border-gray-700 select-all" />
+      <button onclick="document.getElementById('linkModal').classList.add('hidden')" class="w-full bg-indigo-600 py-2 rounded font-bold text-xs">ปิดหน้าต่าง</button>
+    </div>
   </div>
 
   <script>
-    // --- Firebase Initialization ---
+    // --- Firebase Config ---
     const firebaseConfig = {
       apiKey: "AIzaSyAWUWpDnF5Yt7QQ0ULvsxSVJhV0ckGMfu8",
       authDomain: "chatcharin-af5e4.firebaseapp.com",
@@ -88,76 +91,68 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111827);
 
-    // Grid Floor
-    const gridHelper = new THREE.GridHelper(20, 20, 0x4b5563, 0x1f2937);
-    scene.add(gridHelper);
+    const grid = new THREE.GridHelper(10, 10, 0x4b5563, 0x1f2937);
+    scene.add(grid);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 12, 8);
-    scene.add(dirLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const light = new THREE.DirectionalLight(0xffffff, 0.6);
+    light.position.set(3, 10, 5);
+    scene.add(light);
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(3, 3, 5);
+    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera.position.set(0, 3, 5);
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
 
-    // Controls
-    const orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
-    const transformControls = new THREE.TransformControls(camera, renderer.domElement);
-    
-    transformControls.addEventListener('dragging-changed', (event) => {
-      orbitControls.enabled = !event.value;
-    });
-    scene.add(transformControls);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
 
-    // Data State
-    let blocks = [];
-    let selectedMesh = null;
+    let parts = [];
+    let selected = null;
 
-    // --- Hotkeys ---
-    window.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT') return;
-      if (e.key === 'w' || e.key === 'W') transformControls.setMode('translate');
-      if (e.key === 'e' || e.key === 'E') transformControls.setMode('rotate');
-      if (e.key === 'r' || e.key === 'R') transformControls.setMode('scale');
-    });
+    // --- Quick Add Part ---
+    function addPart(type, name, tag = '', pos = [0, 0.5, 0], scale = [1, 1, 1], color = 0x3b82f6) {
+      const geo = type === 'sphere' ? new THREE.SphereGeometry(0.5, 16, 16) : new THREE.BoxGeometry(1, 1, 1);
+      const mat = new THREE.MeshStandardMaterial({ color: color });
+      const mesh = new THREE.Mesh(geo, mat);
 
-    // --- Add Primitive Mesh ---
-    function addBlock(type = 'box', parentMesh = null) {
-      const id = 'part_' + Math.random().toString(36).substr(2, 7);
-      let geometry = type === 'box' ? new THREE.BoxGeometry(1, 1, 1) : new THREE.SphereGeometry(0.6, 16, 16);
-      const material = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
-      const mesh = new THREE.Mesh(geometry, material);
-
-      mesh.position.set(0, 0.5, 0);
+      mesh.position.set(...pos);
+      mesh.scale.set(...scale);
       mesh.userData = {
-        id: id,
-        name: type === 'box' ? 'กล่อง' : 'ทรงกลม',
-        tag: '', // Tag สำหรับอ้างอิงในเกม เช่น Torso, Head, RightArm
-        parentId: parentMesh ? parentMesh.userData.id : null,
+        id: 'p_' + Math.random().toString(36).substr(2, 5),
+        name: name,
+        tag: tag,
         type: type,
-        pivot: [0, 0, 0]
+        colorHex: '#' + mesh.material.color.getHexString()
       };
 
-      if (parentMesh) {
-        parentMesh.add(mesh);
-      } else {
-        scene.add(mesh);
-      }
-
-      blocks.push(mesh);
-      selectMesh(mesh);
-      updateUI();
+      scene.add(mesh);
+      parts.push(mesh);
+      selectPart(mesh);
+      return mesh;
     }
 
-    // --- Selection Logic ---
+    // --- Preset: Humanoid Model ---
+    function createHumanPreset() {
+      // Clear Old
+      parts.forEach(p => scene.remove(p));
+      parts = [];
+
+      // Body Parts
+      addPart('box', 'ลำตัว', 'Torso', [0, 1.5, 0], [0.8, 1.2, 0.4], 0x2563eb);
+      addPart('sphere', 'หัว', 'Head', [0, 2.4, 0], [0.8, 0.8, 0.8], 0xf59e0b);
+      addPart('box', 'แขนขวา', 'RightArm', [0.65, 1.5, 0], [0.3, 1.0, 0.3], 0x10b981);
+      addPart('box', 'แขนซ้าย', 'LeftArm', [-0.65, 1.5, 0], [0.3, 1.0, 0.3], 0x10b981);
+      addPart('box', 'ขาขวา', 'RightLeg', [0.25, 0.5, 0], [0.35, 1.0, 0.35], 0xef4444);
+      addPart('box', 'ขาซ้าย', 'LeftLeg', [-0.25, 0.5, 0], [0.35, 1.0, 0.35], 0xef4444);
+
+      camera.position.set(0, 2, 4);
+      controls.target.set(0, 1.5, 0);
+    }
+
+    // --- Selection System ---
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -167,139 +162,78 @@
       mouse.y = -((e.clientY - rect.top) / container.clientHeight) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(blocks, false);
+      const intersects = raycaster.intersectObjects(parts);
 
       if (intersects.length > 0) {
-        selectMesh(intersects[0].object);
+        selectPart(intersects[0].object);
       }
     });
 
-    function selectMesh(mesh) {
-      selectedMesh = mesh;
-      if (mesh) {
-        transformControls.attach(mesh);
-        document.getElementById('btnDelete').classList.remove('hidden');
+    function selectPart(mesh) {
+      if (selected) selected.material.emissive.setHex(0x000000);
+      selected = mesh;
+
+      if (selected) {
+        selected.material.emissive.setHex(0x333333);
+        document.getElementById('controlPanel').classList.remove('hidden');
+        document.getElementById('selectedName').innerText = `${selected.userData.name} (${selected.userData.tag || 'ไม่มีแท็ก'})`;
+        document.getElementById('tagInput').value = selected.userData.tag || '';
       } else {
-        transformControls.detach();
-        document.getElementById('btnDelete').classList.add('hidden');
+        document.getElementById('controlPanel').classList.add('hidden');
       }
-      updateInspector();
-      updateUI();
     }
 
-    function deleteSelected() {
-      if (!selectedMesh) return;
-      transformControls.detach();
-      
-      // Remove from Scene & Array
-      scene.remove(selectedMesh);
-      blocks = blocks.filter(b => b !== selectedMesh);
-      selectedMesh = null;
-      
-      updateInspector();
-      updateUI();
+    function moveObj(axis, val) {
+      if (!selected) return;
+      selected.position[axis] += val;
     }
 
-    // --- UI & Inspector Rendering ---
-    function updateUI() {
-      const listEl = document.getElementById('partList');
-      listEl.innerHTML = '';
-
-      blocks.forEach(mesh => {
-        const isSelected = selectedMesh === mesh;
-        const item = document.createElement('div');
-        item.className = `p-2 rounded text-xs flex justify-between items-center cursor-pointer ${
-          isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
-        }`;
-        
-        item.innerHTML = `
-          <div>
-            <span class="font-bold">${mesh.userData.name}</span>
-            ${mesh.userData.tag ? `<span class="ml-1 px-1 bg-emerald-800 rounded text-[10px] text-emerald-200">[${mesh.userData.tag}]</span>` : ''}
-          </div>
-          <button onclick="event.stopPropagation(); addBlock('box', blocks.find(b => b.userData.id === '${mesh.userData.id}'))" class="text-[10px] bg-gray-700 hover:bg-gray-600 px-1.5 py-0.5 rounded">+ ย่อย</button>
-        `;
-        
-        item.onclick = () => selectMesh(mesh);
-        listEl.appendChild(item);
-      });
+    function updateTag(val) {
+      if (!selected) return;
+      selected.userData.tag = val;
+      document.getElementById('selectedName').innerText = `${selected.userData.name} (${val})`;
     }
 
-    function updateInspector() {
-      const inspector = document.getElementById('inspector-content');
-      if (!selectedMesh) {
-        inspector.innerHTML = `<p class="text-sm text-gray-400 italic">เลือกชิ้นส่วนเพื่อแก้ไข</p>`;
+    function deleteCurrent() {
+      if (!selected) return;
+      scene.remove(selected);
+      parts = parts.filter(p => p !== selected);
+      selected = null;
+      document.getElementById('controlPanel').classList.add('hidden');
+    }
+
+    // --- Save & Get Link ---
+    async function saveAndGetLink() {
+      if (parts.length === 0) {
+        alert('ยังไม่มีโมเดลในฉากเลย!');
         return;
       }
 
-      const data = selectedMesh.userData;
-      inspector.innerHTML = `
-        <div class="space-y-3">
-          <div>
-            <label class="text-xs text-gray-400 block mb-1">ชื่อชิ้นส่วน</label>
-            <input type="text" value="${data.name}" onchange="selectedMesh.userData.name = this.value; updateUI();" class="w-full bg-gray-900 p-2 rounded text-sm border border-gray-700 text-white"/>
-          </div>
-
-          <div>
-            <label class="text-xs text-emerald-400 font-bold block mb-1">🏷️ Tag (อ้างอิงในเกม)</label>
-            <input type="text" placeholder="เช่น RightArm, Head, Wheel" value="${data.tag}" onchange="selectedMesh.userData.tag = this.value; updateUI();" class="w-full bg-gray-900 p-2 rounded text-sm border border-emerald-600 text-emerald-200"/>
-          </div>
-
-          <div>
-            <label class="text-xs text-gray-400 block mb-1">สีชิ้นส่วน</label>
-            <input type="color" value="#${selectedMesh.material.color.getHexString()}" oninput="selectedMesh.material.color.set(this.value)" class="w-full h-8 bg-gray-900 rounded cursor-pointer"/>
-          </div>
-        </div>
-      `;
-    }
-
-    // --- Firebase Sync: Save Model Data ---
-    async function saveToFirebase() {
-      if (blocks.length === 0) {
-        alert('กรุณาสร้างชิ้นส่วนอย่างน้อย 1 ชิ้น');
-        return;
-      }
-
-      // Convert ThreeJS Meshes to JSON Array Schema
       const exportData = {
-        createdAt: new Date().toISOString(),
-        nodes: blocks.map(mesh => ({
-          id: mesh.userData.id,
-          name: mesh.userData.name,
-          tag: mesh.userData.tag,
-          parentId: mesh.userData.parentId,
-          type: mesh.userData.type,
-          color: '#' + mesh.material.color.getHexString(),
+        nodes: parts.map(p => ({
+          name: p.userData.name,
+          tag: p.userData.tag,
+          type: p.userData.type,
+          color: '#' + p.material.color.getHexString(),
           transform: {
-            position: [mesh.position.x, mesh.position.y, mesh.position.z],
-            rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z],
-            scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z]
+            position: [p.position.x, p.position.y, p.position.z],
+            scale: [p.scale.x, p.scale.y, p.scale.z]
           }
         }))
       };
 
-      // Push to Realtime Database
-      const newRef = db.ref('models').push();
-      await newRef.set(exportData);
+      const ref = db.ref('models').push();
+      await ref.set(exportData);
 
-      const modelId = newRef.key;
-      const dataUrl = `https://chatcharin-af5e4-default-rtdb.firebaseio.com/models/${modelId}.json`;
-
-      document.getElementById('shareLinkContainer').classList.remove('hidden');
-      document.getElementById('shareUrl').value = dataUrl;
-      alert('บันทึกสำเร็จ! คัดลอก URL เพื่อนำไปใช้ในตัวเกมได้ทันที');
+      const url = `https://chatcharin-af5e4-default-rtdb.firebaseio.com/models/${ref.key}.json`;
+      document.getElementById('resultUrl').value = url;
+      document.getElementById('linkModal').classList.remove('hidden');
     }
 
-    // Window Resize Handler
-    window.addEventListener('resize', () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-    });
-
-    // Render Loop
+    // Loop
     function animate() {
       requestAnimationFrame(animate);
+      controls.update();
       renderer.render(scene, camera);
     }
     animate();
