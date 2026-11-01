@@ -1,1 +1,149 @@
-I Love you so 
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Chat - Realtime</title>
+    <!-- Tailwind CSS CDN สำหรับจัดแต่งทรง -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+        }
+        /* สไตล์ Glassmorphism */
+        .glass {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* ปรับแต่ง Scrollbar ให้สวยงาม */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen max-w-lg mx-auto p-3 sm:p-4 justify-between">
+
+    <!-- Header / ส่วนหัว -->
+    <header class="glass p-4 rounded-2xl shadow-xl flex justify-between items-center mb-3">
+        <div class="flex items-center space-x-2">
+            <span class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+            <h1 class="text-base font-semibold tracking-wide text-white">แชทไม่ระบุตัวตน</h1>
+        </div>
+        <div id="username-badge" class="text-xs bg-slate-800/80 border border-slate-700 text-teal-400 px-3 py-1.5 rounded-xl font-medium">
+            กำลังสุ่มชื่อ...
+        </div>
+    </header>
+
+    <!-- Chat Box / พื้นที่แสดงข้อความ -->
+    <div id="chat-container" class="glass flex-1 rounded-2xl p-4 overflow-y-auto mb-3 flex flex-col space-y-3 shadow-inner">
+        <!-- ข้อความจะถูกเพิ่มเข้ามาตรงนี้แบบ Realtime -->
+    </div>
+
+    <!-- Input Area / ช่องพิมพ์ข้อความ -->
+    <div class="glass p-2 rounded-2xl flex items-center space-x-2 shadow-xl">
+        <input type="text" id="message-input" placeholder="พิมพ์ข้อความพูดคุย..." 
+            class="flex-1 bg-slate-900/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 transition">
+        <button id="send-btn" 
+            class="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white px-5 py-3 rounded-xl text-sm font-medium transition shadow-lg active:scale-95">
+            ส่ง
+        </button>
+    </div>
+
+    <!-- Firebase Script (ใช้งานร่วมกับ Vite Env) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // ดึงค่า Config จาก Environment Variables ของ Netlify/Vite
+        const firebaseConfig = {
+          apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+          authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+          databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+          projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+          storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+          messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+          appId: import.meta.env.VITE_FIREBASE_APP_ID,
+          measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+        };
+
+        // เริ่มต้นใช้งาน Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // สุ่มชื่อผู้ใช้แบบไม่ระบุตัวตน (เช่น นิรนาม_4821)
+        const randomId = Math.floor(1000 + Math.random() * 9000);
+        const myUsername = `นิรนาม_${randomId}`;
+        document.getElementById('username-badge').innerText = myUsername;
+
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const chatContainer = document.getElementById('chat-container');
+
+        // ฟังก์ชันส่งข้อความเข้า Firebase Realtime Database
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            const messagesRef = ref(db, 'public_chats');
+            push(messagesRef, {
+                username: myUsername,
+                text: text,
+                timestamp: Date.now()
+            }).then(() => {
+                messageInput.value = '';
+            }).catch((error) => {
+                console.error("ส่งข้อความไม่สำเร็จ: ", error);
+            });
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // ดึงข้อมูลข้อความแบบ Realtime เมื่อมีข้อความใหม่ถูกเพิ่ม
+        const messagesRef = ref(db, 'public_chats');
+        onChildAdded(messagesRef, (snapshot) => {
+            const data = snapshot.val();
+            const isMe = data.username === myUsername;
+
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`;
+
+            messageWrapper.innerHTML = `
+                <span class="text-[11px] text-slate-400 px-1">${data.username}</span>
+                <div class="max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-md ${
+                    isMe 
+                    ? 'bg-teal-600 text-white rounded-br-none' 
+                    : 'bg-slate-800/90 border border-slate-700/50 text-slate-200 rounded-bl-none'
+                }">
+                    ${escapeHtml(data.text)}
+                </div>
+            `;
+
+            chatContainer.appendChild(messageWrapper);
+            // เลื่อนลงล่างสุดอัตโนมัติ
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        });
+
+        // ป้องกัน XSS เบื้องต้น
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
